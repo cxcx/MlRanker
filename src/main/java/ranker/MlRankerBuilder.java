@@ -19,6 +19,7 @@
 
 package ranker;
 
+import model.ModelManage;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
@@ -152,6 +153,7 @@ public class MlRankerBuilder extends RescorerBuilder<MlRankerBuilder> {
         @Override
         public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) throws IOException {
             MlRankerContext context = (MlRankerContext) rescoreContext;
+            ModelManage.loadPmmlFile("lr.pmml");
             int end = Math.min(topDocs.scoreDocs.length, rescoreContext.getWindowSize());
             if (context.featuresFields != null && context.featuresFields.size() > 0) {
                 /*
@@ -179,7 +181,7 @@ public class MlRankerBuilder extends RescorerBuilder<MlRankerBuilder> {
                         } while (topDocs.scoreDocs[i].doc >= endDoc);
                     }
 
-                    double val = 0;
+                    List<Double> inputs = new ArrayList<>();
                     for (IndexFieldData<?> field : context.featuresFields) {
                         AtomicFieldData fd = field.load(leaf);
                         if (!(fd instanceof AtomicNumericFieldData)) {
@@ -196,10 +198,11 @@ public class MlRankerBuilder extends RescorerBuilder<MlRankerBuilder> {
                             throw new IllegalArgumentException("document [" + topDocs.scoreDocs[i].doc
                                     + "] has more than one value for the field [" + field.getFieldName() + "]");
                         }
-                        val += dataValue.nextValue();
+                        inputs.add(dataValue.nextValue());
                     }
 
-                    topDocs.scoreDocs[i].score = (float) val;
+                    topDocs.scoreDocs[i].score = (float) ModelManage.inference(inputs);
+                    inputs = null;
                 }
 
 
